@@ -1,44 +1,39 @@
 defmodule Floki.Mixfile do
   use Mix.Project
 
+  @description "Floki is a simple HTML parser that enables search for nodes using CSS selectors."
+  @version "0.10.0"
+
   def project do
     [app: :floki,
-     version: "0.6.1",
      name: "Floki",
-     elixir: ">= 1.0.0",
+     version: @version,
+     description: @description,
+     elixir: ">= 1.1.0",
      package: package,
-     description: description,
-     docs: [extras: ["README.md"]],
+     deps: deps,
      source_url: "https://github.com/philss/floki",
-     deps: deps]
+     docs: [extras: ["README.md"], main: "Floki"]]
   end
 
   def application do
-    [applications: [:mochiweb]]
+    [applications: [:mochiweb_html]]
   end
 
   defp deps do
     [
-      {:mochiweb, "~> 2.12.2"},
-      {:earmark, "~> 0.1", only: :dev},
-      {:ex_doc, "~> 0.8", only: :dev},
-      {:inch_ex, only: :docs}
+      {:mochiweb_html, "~> 2.15"},
+      {:earmark, "~> 1.0", only: :dev},
+      {:ex_doc, "~> 0.13", only: :dev},
+      {:inch_ex,">= 0.0.0", only: :docs}
     ]
-  end
-
-  defp description do
-    """
-    A HTML parser and searcher.
-
-    You can search inside HTML documents using CSS selectors.
-    """
   end
 
   defp package do
     %{
       maintainers: ["Philip Sampaio Silva"],
       licenses: ["MIT"],
-      files: ["lib", "priv", "src/*.xrl", "mix.exs", "README*", "readme*", "LICENSE*", "license*"],
+      files: ["lib", "priv", "src/*.xrl", "mix.exs", "README.md", "LICENSE"],
       links: %{
         "GitHub" => "https://github.com/philss/floki",
         "Docs"   => "http://hexdocs.pm/floki"

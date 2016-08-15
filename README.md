@@ -3,18 +3,16 @@
 [![Build status](https://travis-ci.org/philss/floki.svg?branch=master)](https://travis-ci.org/philss/floki)
 [![Floki version](https://img.shields.io/hexpm/v/floki.svg)](https://hex.pm/packages/floki)
 [![Hex.pm](https://img.shields.io/hexpm/dt/floki.svg)](https://hex.pm/packages/floki)
+[![Deps Status](https://beta.hexfaktor.org/badge/all/github/philss/floki.svg)](https://beta.hexfaktor.org/github/philss/floki)
 [![Inline docs](http://inch-ci.org/github/philss/floki.svg?branch=master)](http://inch-ci.org/github/philss/floki)
 
 Floki is a simple HTML parser that enables search for nodes using CSS selectors.
-
-You can perform searches using classes, attributes, tag names and IDs.
-You can also combine selectors and use groups, like: `"a.foo[data-action='bar'], .baz.zaz"`.
 
 [Check the documentation](http://hexdocs.pm/floki).
 
 ## Usage
 
-Assuming that you have the following HTML:
+Take this HTML as an example:
 
 ```html
 <!doctype html>
@@ -97,17 +95,26 @@ It is simple as that!
 
 ## Installation
 
-You can install Floki by adding a dependency to your mix file (mix.exs):
+Add Floki in your `mix.exs`, as a dependency:
 
 ```elixir
 defp deps do
   [
-    {:floki, "~> 0.6"}
+    {:floki, "~> 0.10.0"}
   ]
 end
 ```
 
 After that, run `mix deps.get`.
+
+## Dependencies
+
+Floki needs the `leex` module in order to compile.
+Normally this module is installed with Erlang in a complete installation.
+
+If you get this [kind of error](https://github.com/philss/floki/issues/35),
+you need to install the `erlang-dev` and `erlang-parsetools` packages in order get the `leex` module.
+The packages names may be different depending on your OS.
 
 ## More about the API
 
@@ -137,7 +144,7 @@ To convert your node tree back to raw HTML (spaces are ignored):
 
 ```elixir
 Floki.find(html, ".example")
-|> Flok.raw_html
+|> Floki.raw_html
 # =>  <div class="example"></div>
 ```
 

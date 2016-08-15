@@ -1,13 +1,10 @@
 defmodule Floki do
   alias Floki.Finder
   alias Floki.Parser
+  alias Floki.FilterOut
 
   @moduledoc """
-  A HTML parser and seeker.
-
-  This is a simple HTML parser that enables searching using CSS like selectors.
-
-  You can search elements by class, tag name and id.
+  Floki is a simple HTML parser that enables search for nodes using CSS selectors.
 
   ## Example
 
@@ -26,14 +23,14 @@ defmodule Floki do
   </html>
   ```
 
-  You can perform the following queries:
+  Examples of queries that you can perform:
 
-    * Floki.find(html, "#content") : returns the section with all children;
-    * Floki.find(html, ".headline") : returns a list with the `p` element;
-    * Floki.find(html, "a") : returns a list with the `a` element;
-    * Floki.find(html, "[data-model=user]") : returns a list with elements that match that data attribute;
-    * Floki.find(html, "#content a") # returns all links inside content section;
-    * Floki.find(html, ".headline, a") # returns the .headline elements and links.
+    * Floki.find(html, "#content")
+    * Floki.find(html, ".headline")
+    * Floki.find(html, "a")
+    * Floki.find(html, "[data-model=user]")
+    * Floki.find(html, "#content a")
+    * Floki.find(html, ".headline, a")
 
   Each HTML node is represented by a tuple like:
 
@@ -91,6 +88,8 @@ defmodule Floki do
 
   """
 
+  @spec raw_html(html_tree) :: binary
+
   def raw_html(html_tree), do: raw_html(html_tree, "")
   defp raw_html([], html), do: html
   defp raw_html(tuple, html) when is_tuple(tuple), do: raw_html([tuple], html)
@@ -102,9 +101,12 @@ defmodule Floki do
 
   defp tag_attrs(attr_list) do
     attr_list
-    |> Enum.reduce("", fn({attr, value}, attrs) -> ~s(#{attrs} #{attr}="#{value}") end)
+    |> Enum.reduce("", &build_attrs/2)
     |> String.strip
   end
+
+  defp build_attrs({attr, value}, attrs), do: ~s(#{attrs} #{attr}="#{value}")
+  defp build_attrs(attr, attrs), do: "#{attrs} #{attr}"
 
   defp tag_for(type, attrs, _children) when type in @self_closing_tags do
     case attrs do
@@ -133,12 +135,15 @@ defmodule Floki do
       iex> Floki.find("<p><a href='https://google.com'>Google</a></p>", "a")
       [{"a", [{"href", "https://google.com"}], ["Google"]}]
 
+      iex> Floki.find([{ "div", [], [{"a", [{"href", "https://google.com"}], ["Google"]}]}], "div a")
+      [{"a", [{"href", "https://google.com"}], ["Google"]}]
+
   """
 
   @spec find(binary | html_tree, binary) :: html_tree
 
   def find(html, selector) when is_binary(html) do
-    parse(html) |> Finder.find(selector)
+    html |> parse |> Finder.find(selector)
   end
   def find(html_tree, selector) do
     Finder.find(html_tree, selector)
@@ -148,6 +153,8 @@ defmodule Floki do
   Returns the text nodes from a HTML tree.
   By default, it will perform a deep search through the HTML tree.
   You can disable deep search with the option `deep` assigned to false.
+  You can include content of script tags with the option `js` assigned to true.
+  You can specify a separator between nodes content.
 
   ## Examples
 
@@ -157,24 +164,47 @@ defmodule Floki do
       iex> Floki.text("<div><span>hello</span> world</div>", deep: false)
       " world"
 
+      iex> Floki.text("<div><script>hello</script> world</div>")
+      " world"
+
+      iex> Floki.text("<div><script>hello</script> world</div>", js: true)
+      "hello world"
+
+      iex> Floki.text("<ul><li>hello</li><li>world</li></ul>", sep: " ")
+      "hello world"
+
+      iex> Floki.text([{"div", [], ["hello world"]}])
+      "hello world"
+
   """
 
   @spec text(html_tree | binary) :: binary
 
-  def text(html, opts \\ [deep: true]) do
+  def text(html, opts \\ [deep: true, js: false, sep: ""]) do
     html_tree =
-      case is_binary(html) do
-        true -> parse(html)
-        false -> html
+      if is_binary(html) do
+        parse(html)
+      else
+        html
+      end
+
+    cleaned_html_tree =
+      case opts[:js] do
+        true -> html_tree
+        _ -> filter_out(html_tree, "script")
       end
 
     search_strategy =
       case opts[:deep] do
-        true -> Floki.DeepText
         false -> Floki.FlatText
+        _ -> Floki.DeepText
       end
 
-    search_strategy.get(html_tree)
+    case opts[:sep] do
+      nil -> search_strategy.get(cleaned_html_tree)
+      sep -> search_strategy.get(cleaned_html_tree, sep)
+    end
+
   end
 
   @doc """
@@ -183,6 +213,9 @@ defmodule Floki do
   ## Examples
 
       iex> Floki.attribute("<a href='https://google.com'>Google</a>", "a", "href")
+      ["https://google.com"]
+
+      iex> Floki.attribute([{"a", [{"href", "https://google.com"}], ["Google"]}], "a", "href")
       ["https://google.com"]
 
   """
@@ -201,6 +234,9 @@ defmodule Floki do
   ## Examples
 
       iex> Floki.attribute("<a href=https://google.com>Google</a>", "href")
+      ["https://google.com"]
+
+      iex> Floki.attribute([{"a", [{"href", "https://google.com"}], ["Google"]}], "href")
       ["https://google.com"]
 
   """
@@ -236,5 +272,32 @@ defmodule Floki do
     Enum.find attributes, fn({attr_name, _}) ->
       attr_name == attribute_name
     end
+  end
+
+  @doc """
+  Returns the nodes from a HTML tree that don't match the filter selector.
+
+  ## Examples
+
+      iex> Floki.filter_out("<div><script>hello</script> world</div>", "script")
+      {"div", [], [" world"]}
+
+      iex> Floki.filter_out([{"body", [], [{"script", [], []},{"div", [], []}]}], "script")
+      [{"body", [], [{"div", [], []}]}]
+
+      iex> Floki.filter_out("<div><!-- comment --> text</div>", :comment)
+      {"div", [], [" text"]}
+
+  """
+
+  @spec filter_out(binary | html_tree, binary) :: list
+
+  def filter_out(html_tree, selector) when is_binary(html_tree) do
+    html_tree
+    |> parse
+    |> FilterOut.filter_out(selector)
+  end
+  def filter_out(elements, selector) do
+    FilterOut.filter_out(elements, selector)
   end
 end

@@ -1,5 +1,5 @@
 defmodule FlokiTest do
-  use ExUnit.Case, assyc: true
+  use ExUnit.Case, async: true
 
   doctest Floki
 
@@ -47,7 +47,7 @@ defmodule FlokiTest do
   </body>
   </html>
   """
-  
+
   @html_without_html_tag """
   <h2 class="js-cool">One</h2>
   <p>Two</p>
@@ -152,6 +152,11 @@ defmodule FlokiTest do
   test "raw_html (after find)" do
     raw_html = Floki.parse(@basic_html) |> Floki.find("a") |> Floki.raw_html
     assert raw_html == ~s(<a href="uol.com.br" class="bar"><span>UOL</span><img src="foo.png"/></a>)
+  end
+
+  test "raw_html (with boolean attribute)" do
+    raw_html = Floki.raw_html({"div", ["hidden"], []})
+    assert raw_html == "<div hidden></div>"
   end
 
   # Floki.find/2 - Classes
@@ -364,6 +369,25 @@ defmodule FlokiTest do
     assert Floki.find(@html_with_img, "body > img") == []
   end
 
+  test "find only immediate children elements" do
+    expected = [
+      {"img", [{"src", "http://facebook.com/logo.png"}], []}
+    ]
+
+    html = ~s(
+    <div>
+      <p>
+        <span>
+          <img src="http://facebook.com/logo.png" />
+        </span>
+      </p>
+    </div>
+    )
+
+    assert Floki.find(html, "div > p > img") == []
+    assert Floki.find(html, "div > p > span > img") == expected
+  end
+
   # Floki.find/2 - Sibling combinator
 
   test "find sibling element" do
@@ -443,12 +467,32 @@ defmodule FlokiTest do
     assert Floki.find(@xml, "title") == expected
   end
 
-  @tag timeout: 1000
+  test "find elements inside namespaces" do
+    xml = "<x:foo><x:bar>42</x:bar></x:foo>"
+
+    assert Floki.find(xml, "x | bar") == [{"x:bar", [], ["42"]}]
+  end
+
+  @tag timeout: 50
   test "find an inexistent element inside a invalid HTML" do
     assert Floki.find("something", "a") == []
     assert Floki.find("", "a") == []
     assert Floki.find("foobar", "a") == []
     assert Floki.find("foobar<a", "a") == []
+  end
+
+  # Floki.find/2 - Raw selector structs
+
+  test "find single selector structs" do
+    selector_struct = %Floki.Selector{ type: "a" }
+    assert Floki.find(@html, "a") == Floki.find(@html, selector_struct)
+  end
+
+  test "find multiple selector structs" do
+    selector_struct_1 = %Floki.Selector{ type: "a" }
+    selector_struct_2 = %Floki.Selector{ type: "div" }
+
+    assert Floki.find(@html, "a,div") == Floki.find(@html, [selector_struct_1, selector_struct_2])
   end
 
   # Floki.attribute/3
